@@ -42,6 +42,12 @@ function getFastImageSignature(base64: string): string {
 // Translation & AR OCR endpoint with multi-model fallback for 100% uptime & low latency
 app.post('/api/translate-vision', async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({
+        error: 'Chưa cấu hình GEMINI_API_KEY trên Vercel. Hãy vào Vercel Settings > Environment Variables để thêm GEMINI_API_KEY.'
+      });
+    }
+
     const { image, targetLang = 'vi', sourceLang = 'auto' } = req.body;
 
     if (!image) {

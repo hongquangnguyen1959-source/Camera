@@ -33,6 +33,7 @@ import { PhrasebookModal } from './components/PhrasebookModal';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { TravelAskModal } from './components/TravelAskModal';
 import { OfflinePacksModal } from './components/OfflinePacksModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { speakText } from './utils/audio';
 import { compressImageForOCR } from './utils/imageCompressor';
 import { translateOfflineSnapshot } from './utils/offlineTranslator';
@@ -271,6 +272,9 @@ export default function App() {
 
         {/* Action Controls & Travel Tools */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* PWA Install Button */}
+          <PWAInstallButton />
+
           {/* View mode toggle (AR vs List) when result exists */}
           {result && (
             <div className="hidden sm:flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-0.5 mr-1">
