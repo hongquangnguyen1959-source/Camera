@@ -13,8 +13,10 @@ import {
   Upload,
   Radio,
   Scan,
+  Key,
 } from 'lucide-react';
 import { TRAVEL_SAMPLES } from '../data/travelSamples';
+import { POPULAR_LANGUAGE_PACKS } from '../data/offlineLanguagePacksData';
 import { TravelSample } from '../types';
 
 interface CameraViewProps {
@@ -28,6 +30,9 @@ interface CameraViewProps {
   detectedCount: number;
   isOnline?: boolean;
   onOpenOfflinePacks?: () => void;
+  activePackId?: string;
+  isMissingApiKey?: boolean;
+  onOpenApiKeyModal?: () => void;
   children?: React.ReactNode;
 }
 
@@ -42,6 +47,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
   detectedCount,
   isOnline = true,
   onOpenOfflinePacks,
+  activePackId = 'zh',
+  isMissingApiKey = false,
+  onOpenApiKeyModal,
   children,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -338,6 +346,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     e.target.value = '';
   };
 
+  const activePack =
+    POPULAR_LANGUAGE_PACKS.find((p) => p.id === activePackId) || POPULAR_LANGUAGE_PACKS[0];
+
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center bg-black overflow-hidden select-none">
       <canvas ref={canvasRef} className="hidden" />
@@ -354,6 +365,39 @@ export const CameraView: React.FC<CameraViewProps> = ({
         ref={viewportRef}
         className="relative w-full h-full flex items-center justify-center overflow-hidden bg-slate-950"
       >
+        {/* Missing API Key helper banner */}
+        {isMissingApiKey && !staticImageUrl && (
+          <div className="absolute top-14 inset-x-3 sm:inset-x-8 max-w-md mx-auto z-30 bg-slate-950/95 border border-amber-500/60 rounded-2xl p-3 shadow-2xl backdrop-blur-md text-slate-100 flex items-start gap-2.5 pointer-events-auto animate-in fade-in">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                Chưa có Gemini API Key trên Vercel
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                Camera đang tự động dịch bằng gói ngoại tuyến <strong>{activePack.shortName}</strong>. Để dịch AI trực tuyến đa ngôn ngữ, hãy nhập Key miễn phí:
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {onOpenApiKeyModal && (
+                  <button
+                    onClick={onOpenApiKeyModal}
+                    className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg font-bold text-[11px] shadow-sm flex items-center gap-1 transition"
+                  >
+                    <Key className="w-3 h-3" />
+                    <span>Nhập Key miễn phí (30s)</span>
+                  </button>
+                )}
+                {onOpenOfflinePacks && (
+                  <button
+                    onClick={onOpenOfflinePacks}
+                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] border border-slate-700 transition"
+                  >
+                    <span>Quản lý gói ngoại tuyến</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {staticImageUrl ? (
           // Static Preset Image Mode: shrinkwrap wrapper guarantees exact coordinate alignment
           <div className="relative inline-flex items-center justify-center max-w-full max-h-full">
@@ -465,12 +509,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
                   </span>
                 )}
               </div>
-              {!isOnline && onOpenOfflinePacks && (
+              {onOpenOfflinePacks && (
                 <button
                   onClick={onOpenOfflinePacks}
-                  className="py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-[11px] font-semibold backdrop-blur-md transition flex items-center gap-1"
+                  className="py-1.5 px-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-emerald-300 rounded-xl text-xs font-semibold backdrop-blur-md transition flex items-center gap-1.5 shadow-lg"
+                  title="Đổi gói ngôn ngữ (Trung, Nhật, Hàn, Anh, Thái, Pháp)"
                 >
-                  <span>Gói đã tải</span>
+                  <span>{activePack.flag}</span>
+                  <span className="text-xs">{activePack.shortName}</span>
+                  <span className="text-[10px] text-slate-400">▾</span>
                 </button>
               )}
             </div>

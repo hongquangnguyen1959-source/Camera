@@ -16,15 +16,21 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Initialize Gemini SDK with server-side API Key
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Initialize Gemini SDK with server-side API Key or client override
+function getAiClient(customKey?: string): GoogleGenAI {
+  const key = customKey || process.env.GEMINI_API_KEY;
+  return new GoogleGenAI({
+    apiKey: key,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
+
+// Default instance using server environment
+const defaultAi = getAiClient();
 
 // In-memory cache for OCR frames to eliminate redundant API calls & save quota
 const frameCache = new Map<string, { data: any; expiresAt: number }>();
@@ -39,14 +45,27 @@ function getFastImageSignature(base64: string): string {
   return sig;
 }
 
+// Health check endpoint to diagnose Vercel environment setup
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    hasServerApiKey: Boolean(process.env.GEMINI_API_KEY),
+  });
+});
+
 // Translation & AR OCR endpoint with multi-model fallback for 100% uptime & low latency
 app.post('/api/translate-vision', async (req, res) => {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({
-        error: 'Chưa cấu hình GEMINI_API_KEY trên Vercel. Hãy vào Vercel Settings > Environment Variables để thêm GEMINI_API_KEY.'
+    const userApiKey = (req.headers['x-gemini-api-key'] as string) || process.env.GEMINI_API_KEY;
+
+    if (!userApiKey) {
+      return res.status(401).json({
+        error: 'Chưa cấu hình GEMINI_API_KEY trên Vercel. Bạn có thể bấm [Cài đặt API Key] trên màn hình để dán Key miễn phí (hoặc thêm GEMINI_API_KEY trong Vercel Settings > Environment Variables).',
+        code: 'MISSING_API_KEY',
       });
     }
+
+    const ai = getAiClient(userApiKey);
 
     const { image, targetLang = 'vi', sourceLang = 'auto' } = req.body;
 
@@ -318,6 +337,14 @@ Xuất định dạng JSON thuần:
 // Travel AI Assistant (Quick Q&A on the scanned sign / menu)
 app.post('/api/travel-chat', async (req, res) => {
   try {
+    const userApiKey = (req.headers['x-gemini-api-key'] as string) || process.env.GEMINI_API_KEY;
+    if (!userApiKey) {
+      return res.status(401).json({
+        error: 'Chưa cấu hình GEMINI_API_KEY. Vui lòng bấm Cài đặt API Key để nhập key.',
+        code: 'MISSING_API_KEY'
+      });
+    }
+    const ai = getAiClient(userApiKey);
     const { question, context, image } = req.body;
 
     const parts: any[] = [];
@@ -380,6 +407,11 @@ Hãy trả lời ngắn gọn, thực tế, dễ hiểu bằng tiếng Việt (k
 // High quality TTS endpoint for speech pronunciation
 app.post('/api/tts', async (req, res) => {
   try {
+    const userApiKey = (req.headers['x-gemini-api-key'] as string) || process.env.GEMINI_API_KEY;
+    if (!userApiKey) {
+      return res.status(401).json({ error: 'Chưa có API key' });
+    }
+    const ai = getAiClient(userApiKey);
     const { text, voice = 'Kore' } = req.body;
     if (!text) {
       return res.status(400).json({ error: 'Cần văn bản để phát âm' });

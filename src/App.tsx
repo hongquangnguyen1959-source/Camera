@@ -23,6 +23,7 @@ import {
   X,
   DownloadCloud,
   WifiOff,
+  Key,
 } from 'lucide-react';
 import { CameraView } from './components/CameraView';
 import { AROverlay } from './components/AROverlay';
@@ -33,11 +34,13 @@ import { PhrasebookModal } from './components/PhrasebookModal';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { TravelAskModal } from './components/TravelAskModal';
 import { OfflinePacksModal } from './components/OfflinePacksModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { speakText } from './utils/audio';
 import { compressImageForOCR } from './utils/imageCompressor';
 import { translateOfflineSnapshot } from './utils/offlineTranslator';
-import { getDownloadedPacks } from './utils/languagePackStorage';
+import { getDownloadedPacks, getActivePackId, setActivePackId } from './utils/languagePackStorage';
+import { getUserApiKey } from './utils/apiKeyStorage';
 import {
   DetectedItem,
   VisionTranslationResult,
@@ -66,9 +69,26 @@ export default function App() {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showAskModal, setShowAskModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [hasServerKey, setHasServerKey] = useState<boolean>(true);
+  const [isMissingApiKey, setIsMissingApiKey] = useState<boolean>(false);
+  const [activePackId, setActivePackIdState] = useState<string>(() => getActivePackId());
   const [isOnline, setIsOnline] = useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
+
+  // Check server health & API key configuration on Vercel
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        setHasServerKey(Boolean(data.hasServerApiKey));
+        if (!data.hasServerApiKey && !getUserApiKey()) {
+          setIsMissingApiKey(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Track online/offline connectivity
   useEffect(() => {
@@ -127,9 +147,9 @@ export default function App() {
     try {
       // Offline fallback: If device is offline, translate instantly from downloaded offline pack
       if (!navigator.onLine) {
-        const offlineData = translateOfflineSnapshot(undefined, 'zh');
+        const offlineData = translateOfflineSnapshot(undefined, activePackId);
         setResult(offlineData);
-        setSilentNotice('📶 Đang ngoại tuyến: Dịch tức thì bằng gói ngôn ngữ đã tải trong máy');
+        setSilentNotice(`📶 Đang ngoại tuyến: Dịch tức thì bằng gói ${activePackId.toUpperCase()}`);
         return;
       }
 
@@ -139,9 +159,15 @@ export default function App() {
           ? frameDataUrl
           : await compressImageForOCR(frameDataUrl, 840, 0.65);
 
+      const userKey = getUserApiKey();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (userKey) {
+        headers['x-gemini-api-key'] = userKey;
+      }
+
       const response = await fetch('/api/translate-vision', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           image: compressedImage,
           targetLang: 'vi',
@@ -153,11 +179,24 @@ export default function App() {
       if (!response.ok) {
         // If server returns temporary message or rate limit, update notice and let next frame or scan retry
         const errData = await response.json().catch(() => ({}));
+        if (response.status === 401 || errData.code === 'MISSING_API_KEY') {
+          setIsMissingApiKey(true);
+          const offlineData = translateOfflineSnapshot(undefined, activePackId);
+          setResult(offlineData);
+          setSilentNotice('⚠️ Chưa cài GEMINI_API_KEY trên Vercel: Tự động dùng gói ngoại tuyến.');
+          return;
+        }
         if (response.status === 503 || response.status === 429) {
           setSilentNotice(errData.error || 'Đang kết nối lại máy chủ dịch...');
+        } else if (response.status === 500) {
+          setSilentNotice(errData.error || 'Máy chủ AI đang bận, đang dùng gói ngoại tuyến...');
+          const offlineData = translateOfflineSnapshot(undefined, activePackId);
+          setResult(offlineData);
         }
         return;
       }
+
+      setIsMissingApiKey(false);
 
       const rawData: VisionTranslationResult = await response.json();
       
@@ -210,11 +249,9 @@ export default function App() {
       }
     } catch (err: any) {
       console.warn('Frame processing dropped:', err.message);
-      if (err.message && (err.message.includes('fetch') || err.message.includes('network') || !navigator.onLine)) {
-        const offlineData = translateOfflineSnapshot(undefined, 'zh');
-        setResult(offlineData);
-        setSilentNotice('📶 Đã chuyển sang chế độ dịch ngoại tuyến với gói ngôn ngữ trong máy');
-      }
+      const offlineData = translateOfflineSnapshot(undefined, activePackId);
+      setResult(offlineData);
+      setSilentNotice('📶 Đã chuyển sang chế độ dịch ngoại tuyến với gói ngôn ngữ trong máy');
     } finally {
       clearTimeout(abortTimeout);
       isAnalyzingRef.current = false;
@@ -271,7 +308,7 @@ export default function App() {
         </div>
 
         {/* Action Controls & Travel Tools */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0 max-w-[68%] sm:max-w-none overflow-x-auto no-scrollbar py-1">
           {/* PWA Install Button */}
           <PWAInstallButton />
 
@@ -340,6 +377,22 @@ export default function App() {
               <span className="hidden md:inline">Đoạn văn liền</span>
             </button>
           )}
+
+          {/* Gemini API Key Settings Button */}
+          <button
+            onClick={() => setShowApiKeyModal(true)}
+            className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
+              isMissingApiKey
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 font-bold animate-pulse'
+                : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+            title="Cài đặt Gemini API Key (cho Vercel / Cá nhân)"
+          >
+            <Key className={`w-4 h-4 ${isMissingApiKey ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span className="hidden md:inline font-medium">
+              {isMissingApiKey ? 'Cài Key' : 'API Key'}
+            </span>
+          </button>
 
           {/* Currency Converter Button */}
           <button
@@ -414,6 +467,9 @@ export default function App() {
             detectedCount={result?.items?.length || 0}
             isOnline={isOnline}
             onOpenOfflinePacks={() => setShowOfflineModal(true)}
+            activePackId={activePackId}
+            isMissingApiKey={isMissingApiKey}
+            onOpenApiKeyModal={() => setShowApiKeyModal(true)}
           >
             {/* AR Text Overlay rendered directly on top of the live video or static image */}
             {result && (
@@ -579,10 +635,26 @@ export default function App() {
           onClose={() => setShowOfflineModal(false)}
           isOnline={isOnline}
           onSelectPackForOfflineScan={(packId) => {
+            setActivePackId(packId);
+            setActivePackIdState(packId);
             const offlineData = translateOfflineSnapshot(undefined, packId);
             setResult(offlineData);
-            setSilentNotice(`Đã nạp bộ nhận diện ngoại tuyến gói ${packId.toUpperCase()}`);
+            setSilentNotice(`Đã chuyển sang gói ngoại tuyến ${packId.toUpperCase()}`);
             setTimeout(() => setSilentNotice(null), 4000);
+          }}
+        />
+      )}
+
+      {/* Gemini API Key Configuration Modal */}
+      {showApiKeyModal && (
+        <ApiKeyModal
+          isOpen={showApiKeyModal}
+          onClose={() => setShowApiKeyModal(false)}
+          hasServerKey={hasServerKey}
+          onKeySaved={() => {
+            setIsMissingApiKey(!getUserApiKey() && !hasServerKey);
+            setSilentNotice('Đã lưu API Key! Đang kết nối dịch camera...');
+            setTimeout(() => setSilentNotice(null), 3000);
           }}
         />
       )}

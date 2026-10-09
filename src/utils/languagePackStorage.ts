@@ -1,12 +1,64 @@
 import { POPULAR_LANGUAGE_PACKS, OfflineLanguagePack } from '../data/offlineLanguagePacksData';
 
 const PACKS_STORAGE_KEY = 'offline_language_packs_state_v1';
+const ACTIVE_PACK_KEY = 'offline_active_pack_id_v1';
 
 export interface StoredPackState {
   id: string;
   downloaded: boolean;
   downloadedAt?: number;
   sizeMB: number;
+}
+
+// Active language pack for offline camera scanning
+export function getActivePackId(): string {
+  try {
+    const val = localStorage.getItem(ACTIVE_PACK_KEY);
+    if (val && POPULAR_LANGUAGE_PACKS.some((p) => p.id === val)) {
+      return val;
+    }
+  } catch {}
+  return 'zh';
+}
+
+export function setActivePackId(id: string): void {
+  try {
+    localStorage.setItem(ACTIVE_PACK_KEY, id);
+  } catch (e) {
+    console.warn('Failed to save active pack ID', e);
+  }
+}
+
+// Real file download: saves .json file directly to user device's Downloads folder
+export function downloadPackAsJsonFile(pack: OfflineLanguagePack): void {
+  try {
+    const exportData = {
+      app: 'AR_Camera_Translator',
+      pack_id: pack.id,
+      pack_name: pack.name,
+      version: pack.version,
+      exported_at: new Date().toISOString(),
+      signboards: pack.signboards,
+      common_phrases: pack.commonPhrases,
+      dictionary: pack.dictionary,
+    };
+
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `goi_ngon_ngu_${pack.id}_tieng_viet.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Also mark as saved in storage
+    savePackState(pack.id, true);
+  } catch (err) {
+    console.warn('Error downloading JSON pack file:', err);
+  }
 }
 
 // Get raw state from localStorage

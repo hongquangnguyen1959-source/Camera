@@ -20,6 +20,9 @@ import {
   getSavedPacksState,
   savePackState,
   getTotalDownloadedSizeMB,
+  getActivePackId,
+  setActivePackId,
+  downloadPackAsJsonFile,
 } from '../utils/languagePackStorage';
 import { searchOfflineVocabulary, OfflineMatchResult } from '../utils/offlineTranslator';
 import { speakText } from '../utils/audio';
@@ -39,6 +42,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
 }) => {
   const [downloadingPacks, setDownloadingPacks] = useState<Record<string, number>>({});
   const [downloadedState, setDownloadedState] = useState<Record<string, boolean>>({});
+  const [activePackId, setActivePackIdState] = useState<string>(() => getActivePackId());
   const [activeTab, setActiveTab] = useState<'packs' | 'test'>('packs');
 
   // Test search query state
@@ -55,6 +59,7 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
         map[p.id] = Boolean(state[p.id]?.downloaded);
       });
       setDownloadedState(map);
+      setActivePackIdState(getActivePackId());
     }
   }, [isOpen]);
 
@@ -294,34 +299,62 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                             </div>
                           </div>
                         ) : isDownloaded ? (
-                          <div className="flex items-center justify-between gap-2">
-                            {onSelectPackForOfflineScan && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-1.5">
+                              {onSelectPackForOfflineScan && (
+                                <button
+                                  onClick={() => {
+                                    setActivePackId(pack.id);
+                                    setActivePackIdState(pack.id);
+                                    onSelectPackForOfflineScan(pack.id);
+                                    onClose();
+                                  }}
+                                  className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                                    activePackId === pack.id
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {activePackId === pack.id ? '✓ Đang dùng dịch camera' : 'Chọn dùng gói này'}
+                                </button>
+                              )}
+
                               <button
-                                onClick={() => {
-                                  onSelectPackForOfflineScan(pack.id);
-                                  onClose();
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-lg border border-emerald-500/30 transition flex items-center gap-1"
+                                onClick={() => downloadPackAsJsonFile(pack)}
+                                className="px-2.5 py-1.5 text-xs bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-600 transition flex items-center gap-1"
+                                title="Tải tệp JSON dữ liệu về máy điện thoại"
                               >
-                                Dùng dịch biển hiệu này
+                                <ArrowDownToLine className="w-3.5 h-3.5 text-sky-400" />
+                                <span>Tệp .JSON</span>
                               </button>
-                            )}
-                            <button
-                              onClick={() => removePack(pack.id)}
-                              className="ml-auto p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                              title="Xóa gói để giải phóng bộ nhớ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+
+                              <button
+                                onClick={() => removePack(pack.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                                title="Xóa gói để giải phóng bộ nhớ"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => startDownload(pack)}
-                            className="w-full py-2 px-3 text-xs font-semibold bg-slate-700 hover:bg-emerald-600 text-white rounded-lg transition flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            Tải xuống ({pack.sizeMB} MB)
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startDownload(pack)}
+                              className="flex-1 py-2 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Tải về máy ({pack.sizeMB} MB)
+                            </button>
+                            <button
+                              onClick={() => downloadPackAsJsonFile(pack)}
+                              className="py-2 px-2.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg border border-slate-600 transition flex items-center gap-1"
+                              title="Tải trực tiếp tệp .JSON về máy"
+                            >
+                              <ArrowDownToLine className="w-3.5 h-3.5 text-sky-400" />
+                              <span className="hidden sm:inline">Lưu .JSON</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
