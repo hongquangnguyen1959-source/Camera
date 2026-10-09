@@ -56,16 +56,23 @@ function isOverlappingOrNested(boxA: number[], boxB: number[]): boolean {
   return interArea / minArea > 0.3;
 }
 
+function normalizeTextForComparison(text: string): string {
+  return (text || '').toLowerCase().replace(/[\s,.;:!?_()\-–—"']/g, '');
+}
+
 // Anti-overlap, full-text layout engine
 function processAndDeduplicateItems(rawItems: DetectedItem[]): PositionedItem[] {
   if (!rawItems || rawItems.length === 0) return [];
 
-  const validEntries: { item: DetectedItem; box: number[]; text: string; area: number }[] = [];
+  const validEntries: { item: DetectedItem; box: number[]; text: string; norm: string; area: number }[] = [];
 
   for (const rawItem of rawItems) {
     if (!rawItem.box_2d || rawItem.box_2d.length < 4 || !rawItem.translated_text) continue;
     const cleanText = cleanVerboseText(rawItem.translated_text);
     if (!cleanText) continue;
+
+    const norm = normalizeTextForComparison(cleanText);
+    if (norm.length === 0) continue;
 
     const [ymin, xmin, ymax, xmax] = rawItem.box_2d;
     const area = (ymax - ymin) * (xmax - xmin);
@@ -73,18 +80,32 @@ function processAndDeduplicateItems(rawItems: DetectedItem[]): PositionedItem[] 
       item: { ...rawItem, translated_text: cleanText },
       box: rawItem.box_2d,
       text: cleanText,
+      norm,
       area,
     });
   }
 
-  // Prioritize smaller, specific line items over huge macro containers
-  validEntries.sort((a, b) => a.area - b.area);
+  // Prioritize longer, more complete sentences and larger signboard items
+  validEntries.sort((a, b) => b.text.length - a.text.length || b.area - a.area);
 
   const nonColliding: typeof validEntries = [];
   for (const entry of validEntries) {
+    // 1. Text Deduplication: Avoid duplicate phrases or partial fragments of already accepted sentences
+    const isDuplicateText = nonColliding.some((accepted) => {
+      // Exact identical text match
+      if (accepted.norm === entry.norm) return true;
+      // Entry is a sub-phrase/fragment of an already accepted complete sentence
+      if (accepted.norm.includes(entry.norm) && accepted.norm.length > entry.norm.length + 3) return true;
+      return false;
+    });
+
+    if (isDuplicateText) continue;
+
+    // 2. Spatial Deduplication: Avoid overlapping boxes
     const isColliding = nonColliding.some((accepted) =>
       isOverlappingOrNested(accepted.box, entry.box)
     );
+
     if (!isColliding) {
       nonColliding.push(entry);
     }
@@ -174,18 +195,19 @@ export const AROverlay: React.FC<AROverlayProps> = ({
 
         return (
           <div
-            key={index}
+            key={`ar-${text.slice(0, 25)}-${index}`}
             style={{
               top: `${top}%`,
               left: `${left}%`,
               width: `${width}%`,
               minHeight: `${height}%`,
+              transition: 'top 0.18s ease-out, left 0.18s ease-out, width 0.18s ease-out, min-height 0.18s ease-out',
             }}
             onClick={(e) => {
               e.stopPropagation();
               onSelectItem(item);
             }}
-            className={`absolute pointer-events-auto cursor-pointer flex items-center justify-center transition-transform duration-100 ${
+            className={`absolute pointer-events-auto cursor-pointer flex items-center justify-center ${
               isSelected ? 'scale-[1.03] z-30' : 'z-20'
             }`}
             title={`Dịch: ${text}`}

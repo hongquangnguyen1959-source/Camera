@@ -130,7 +130,7 @@ export function searchOfflineVocabulary(
   return results.sort((a, b) => b.confidence - a.confidence);
 }
 
-// Generate an offline translation result from text or simulated offline image scan
+// Generate an offline translation result from text or offline dictionary search
 export function translateOfflineSnapshot(
   contextTextHint?: string,
   preferredLangId: string = 'zh'
@@ -140,35 +140,44 @@ export function translateOfflineSnapshot(
 
   const matchedItems: DetectedItem[] = [];
 
-  // Pick prominent signboard items from the pack to synthesize AR overlay for quick visual translation
-  const sampleSignboards = pack.signboards.slice(0, 6);
-
-  sampleSignboards.forEach((sb, index) => {
-    // Generate clean bounding box locations [ymin, xmin, ymax, xmax]
-    const ymin = 120 + index * 130;
-    const ymax = ymin + 90;
-    const xmin = 150;
-    const xmax = 850;
-
-    matchedItems.push({
-      box_2d: [ymin, xmin, ymax, xmax],
-      original_text: sb.original,
-      translated_text: sb.vietnamese,
-      pronunciation: sb.pinyinOrRomaji,
-      category: sb.category,
-      cultural_tip: sb.note || `Dịch từ gói ngoại tuyến ${pack.shortName}`,
+  if (contextTextHint && contextTextHint.trim()) {
+    const matches = searchOfflineVocabulary(contextTextHint, pack.id);
+    matches.slice(0, 4).forEach((m, idx) => {
+      matchedItems.push({
+        box_2d: [200 + idx * 140, 80, 310 + idx * 140, 920],
+        original_text: m.original,
+        translated_text: m.vietnamese,
+        pronunciation: m.pinyinOrRomaji,
+        category: m.category,
+        cultural_tip: m.note || `Từ điển ngoại tuyến ${pack.shortName}`,
+      });
     });
-  });
+  }
 
-  const summary = `[Dịch ngoại tuyến ${pack.shortName}] Đã đối chiếu ${matchedItems.length} biển hiệu và chỉ dẫn cơ bản từ cơ sở dữ liệu đã tải trong máy.`;
+  if (matchedItems.length === 0 && pack.signboards && pack.signboards.length > 0) {
+    pack.signboards.slice(0, 4).forEach((sb, idx) => {
+      matchedItems.push({
+        box_2d: [180 + idx * 150, 100, 290 + idx * 150, 900],
+        original_text: sb.original,
+        translated_text: sb.vietnamese,
+        pronunciation: sb.pinyinOrRomaji,
+        category: sb.category,
+        cultural_tip: sb.note || `Gói ngoại tuyến ${pack.shortName}`,
+      });
+    });
+  }
+
+  const summary = matchedItems.length > 0
+    ? `[Gói ngoại tuyến ${pack.shortName}] Đã đối chiếu ${matchedItems.length} biển báo & cụm từ thông dụng từ bộ nhớ.`
+    : `[Dịch ngoại tuyến ${pack.shortName}] Chưa tìm thấy từ phù hợp trong bộ từ điển ngoại tuyến.`;
 
   return {
     detected_language: pack.shortName,
     language_code: pack.id,
     summary_translation: summary,
     travel_advice: downloaded
-      ? `Đang hoạt động hoàn toàn không cần Internet với gói ${pack.name}.`
-      : `Đang dùng bản xem trước ngoại tuyến. Hãy tải gói đầy đủ (${pack.sizeMB} MB) để nhận diện thêm từ vựng.`,
+      ? `Đang hoạt động ngoại tuyến với gói ${pack.name}.`
+      : `Đang dùng bản xem trước ngoại tuyến.`,
     items: matchedItems,
   };
 }

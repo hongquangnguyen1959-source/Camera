@@ -32,13 +32,18 @@ function getAiClient(customKey?: string): GoogleGenAI {
 // Default instance using server environment
 const defaultAi = getAiClient();
 
-// In-memory cache for OCR frames to eliminate redundant API calls & save quota
+// In-memory cache for OCR frames to eliminate redundant API calls on completely static views
 const frameCache = new Map<string, { data: any; expiresAt: number }>();
+
+// Circuit breaker cooldown for shared Gemini API Key when reaching free-tier quota limits
+let sharedKeyCooldownUntil = 0;
 
 function getFastImageSignature(base64: string): string {
   const len = base64.length;
-  let sig = `${len}_`;
-  const step = Math.max(1, Math.floor(len / 24));
+  if (len < 500) return base64;
+  // High-dispersion signature sampling head, middle, tail and 64 points across payload
+  let sig = `${len}_${base64.slice(100, 160)}_${base64.slice(-160, -100)}_`;
+  const step = Math.max(1, Math.floor(len / 64));
   for (let i = 0; i < len; i += step) {
     sig += base64[i];
   }
@@ -62,6 +67,16 @@ app.post('/api/translate-vision', async (req, res) => {
       return res.status(401).json({
         error: 'Chưa cấu hình GEMINI_API_KEY trên Vercel. Bạn có thể bấm [Cài đặt API Key] trên màn hình để dán Key miễn phí (hoặc thêm GEMINI_API_KEY trong Vercel Settings > Environment Variables).',
         code: 'MISSING_API_KEY',
+      });
+    }
+
+    // Circuit-breaker check: If using default shared key and currently cooling down from 429
+    const isCustomKey = Boolean(req.headers['x-gemini-api-key']);
+    if (!isCustomKey && Date.now() < sharedKeyCooldownUntil) {
+      return res.status(429).json({
+        error: 'Hệ thống AI dùng chung đã hết 20 lượt miễn phí hôm nay. Đang sử dụng chế độ từ điển ngoại tuyến.',
+        code: 'QUOTA_EXHAUSTED',
+        isQuota: true,
       });
     }
 
@@ -125,8 +140,11 @@ Xuất định dạng JSON thuần:
   ]
 }`;
 
-    // Target the fastest available model with thinkingBudget: 0 and token cap for ~1s latency
+    // Multi-model fallback sequence for 100% reliability and fast response
     const candidateModels = [
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
       'gemini-3.1-flash-lite',
     ];
 
@@ -138,11 +156,10 @@ Xuất định dạng JSON thuần:
         const config: any = {
           systemInstruction: 'Bạn là chuyên gia AR OCR trực tiếp tốc độ cao. Dịch chuẩn xác 100% toàn bộ chữ trong ảnh sang tiếng Việt đầy đủ, rõ nghĩa, không viết tắt, không cắt bớt chữ, không xuất chữ Hán.',
           responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
           maxOutputTokens: 2048,
         };
 
-        // 3.8-second timeout to guarantee real-time turnaround without stalling
+        // 9-second timeout per candidate to guarantee real-time turnaround without premature aborts
         const generatePromise = ai.models.generateContent({
           model: modelName,
           contents: {
@@ -160,7 +177,7 @@ Xuất định dạng JSON thuần:
         });
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Model timeout')), 3800)
+          setTimeout(() => reject(new Error('Model timeout')), 9000)
         );
 
         const response: any = await Promise.race([generatePromise, timeoutPromise]);
@@ -174,11 +191,25 @@ Xuất định dạng JSON thuần:
     }
 
     if (!resultText) {
-      const isQuota = lastError?.status === 'RESOURCE_EXHAUSTED' || (lastError?.message && lastError.message.includes('429'));
+      const isQuota =
+        lastError?.status === 429 ||
+        lastError?.status === 'RESOURCE_EXHAUSTED' ||
+        (lastError?.message && (lastError.message.includes('429') || lastError.message.includes('quota') || lastError.message.includes('RESOURCE_EXHAUSTED')));
+
+      if (isQuota && !isCustomKey) {
+        sharedKeyCooldownUntil = Date.now() + 60000;
+        console.warn('Gemini shared key quota limit reached. Cooldown activated for 60s.');
+      }
+
       const errMsg = isQuota 
-        ? 'Hệ thống AI đang chạm giới hạn lượt yêu cầu miễn phí trong ngày, vui lòng đợi giây lát hoặc bấm Quét ngay.' 
+        ? 'Hệ thống AI dùng chung đã hết 20 lượt miễn phí hôm nay. Ứng dụng đã tự động chuyển sang chế độ từ điển ngoại tuyến.' 
         : (lastError?.message || 'Máy chủ đang tải cao, vui lòng thử lại sau giây lát');
-      return res.status(503).json({ error: errMsg });
+
+      return res.status(429).json({
+        error: errMsg,
+        code: isQuota ? 'QUOTA_EXHAUSTED' : 'SERVICE_UNAVAILABLE',
+        isQuota: Boolean(isQuota),
+      });
     }
 
     // Resilient JSON Parser with auto-repair for truncated model outputs
@@ -315,9 +346,9 @@ Xuất định dạng JSON thuần:
       items: normalizedItems,
     };
 
-    // Cache only if results contain detected items
+    // Cache only for 3 seconds to avoid stale results when panning camera
     if (normalizedItems.length > 0) {
-      frameCache.set(cacheKey, { data: finalResult, expiresAt: now + 12000 });
+      frameCache.set(cacheKey, { data: finalResult, expiresAt: now + 3000 });
       if (frameCache.size > 60) {
         for (const [k, v] of frameCache.entries()) {
           if (v.expiresAt <= now) frameCache.delete(k);
@@ -377,7 +408,7 @@ Hãy trả lời ngắn gọn, thực tế, dễ hiểu bằng tiếng Việt (k
     });
 
     let answerText = '';
-    const chatModels = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.5-flash'];
+    const chatModels = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
     for (const m of chatModels) {
       try {
         const response = await ai.models.generateContent({

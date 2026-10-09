@@ -12,18 +12,16 @@ interface PhrasebookModalProps {
 export const PhrasebookModal: React.FC<PhrasebookModalProps> = ({
   isOpen = true,
   onClose,
-  defaultLang = 'ja',
+  defaultLang = 'zh',
 }) => {
   if (!isOpen) return null;
   const [selectedLang, setSelectedLang] = useState<string>(
-    TRAVEL_PHRASEBOOK[defaultLang] ? defaultLang : 'ja'
+    TRAVEL_PHRASEBOOK[defaultLang] ? defaultLang : 'zh'
   );
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const languages = [
-    { code: 'ja', name: 'Nhật Bản', flag: '🇯🇵' },
-    { code: 'ko', name: 'Hàn Quốc', flag: '🇰🇷' },
-    { code: 'th', name: 'Thái Lan', flag: '🇹🇭' },
+    { code: 'zh', name: 'Tiếng Trung', flag: '🇨🇳' },
     { code: 'en', name: 'Tiếng Anh', flag: '🇬🇧' },
   ];
 

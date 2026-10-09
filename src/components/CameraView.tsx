@@ -14,24 +14,27 @@ import {
   Radio,
   Scan,
   Key,
+  Trash2,
 } from 'lucide-react';
 import { TRAVEL_SAMPLES } from '../data/travelSamples';
 import { POPULAR_LANGUAGE_PACKS } from '../data/offlineLanguagePacksData';
 import { TravelSample } from '../types';
 
 interface CameraViewProps {
-  onLiveFrame: (imageDataUrl: string) => void;
+  onLiveFrame: (imageDataUrl: string, isManualSnap?: boolean) => void;
   isAnalyzing: boolean;
   isLiveTranslating: boolean;
   setIsLiveTranslating: (val: boolean) => void;
   staticImageUrl: string | null;
   onSelectSample: (sample: TravelSample) => void;
   onClearStaticImage: () => void;
+  onClearResult?: () => void;
   detectedCount: number;
   isOnline?: boolean;
   onOpenOfflinePacks?: () => void;
   activePackId?: string;
   isMissingApiKey?: boolean;
+  isQuotaExhausted?: boolean;
   onOpenApiKeyModal?: () => void;
   children?: React.ReactNode;
 }
@@ -44,11 +47,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
   staticImageUrl,
   onSelectSample,
   onClearStaticImage,
+  onClearResult,
   detectedCount,
   isOnline = true,
   onOpenOfflinePacks,
   activePackId = 'zh',
   isMissingApiKey = false,
+  isQuotaExhausted = false,
   onOpenApiKeyModal,
   children,
 }) => {
@@ -269,6 +274,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   // High-performance, non-blocking frame capture directly from video element
   const captureFrame = useCallback(() => {
+    if (staticImageUrl) {
+      return staticImageUrl;
+    }
     const video = videoRef.current;
     if (!video || !cameraReady) return null;
     if (video.videoWidth === 0 || video.videoHeight === 0) return null;
@@ -293,7 +301,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     ctx.drawImage(video, 0, 0, targetW, targetH);
     // 0.58 JPEG produces crisp OCR with tiny ~35KB payload for true 1-second latency
     return canvas.toDataURL('image/jpeg', 0.58);
-  }, [cameraReady]);
+  }, [cameraReady, staticImageUrl]);
 
   // SMOOTH LIVE TRANSLATION LOOP (Completely non-blocking, leaves video stream uninterrupted at 60fps)
   useEffect(() => {
@@ -318,8 +326,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
         }
       }
 
-      // 750ms interval allows true 1-second turnaround while keeping video smooth
-      timeoutId = setTimeout(runLiveLoop, 750);
+      // Throttle interval to 8 seconds if shared quota is exhausted to avoid rate-limit spamming
+      const loopInterval = isQuotaExhausted ? 8000 : 750;
+      timeoutId = setTimeout(runLiveLoop, loopInterval);
     };
 
     timeoutId = setTimeout(runLiveLoop, 100);
@@ -328,7 +337,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isLiveTranslating, staticImageUrl, cameraReady, captureFrame]);
+  }, [isLiveTranslating, staticImageUrl, cameraReady, captureFrame, isQuotaExhausted]);
 
   // Handle local file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,6 +401,40 @@ export const CameraView: React.FC<CameraViewProps> = ({
                     className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] border border-slate-700 transition"
                   >
                     <span>Quản lý gói ngoại tuyến</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quota limit helper banner */}
+        {!isMissingApiKey && isQuotaExhausted && !staticImageUrl && (
+          <div className="absolute top-14 inset-x-3 sm:inset-x-8 max-w-md mx-auto z-30 bg-slate-950/95 border border-amber-500/60 rounded-2xl p-3 shadow-2xl backdrop-blur-md text-slate-100 flex items-start gap-2.5 pointer-events-auto animate-in fade-in">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                AI dùng chung đã hết 20 lượt miễn phí hôm nay
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                Ứng dụng đang dịch bằng gói từ điển <strong>{activePack.shortName}</strong>. Bạn có thể dán Gemini API Key miễn phí từ Google AI Studio để tiếp tục dùng AI tốc độ cao:
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {onOpenApiKeyModal && (
+                  <button
+                    onClick={onOpenApiKeyModal}
+                    className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg font-bold text-[11px] shadow-sm flex items-center gap-1 transition"
+                  >
+                    <Key className="w-3 h-3" />
+                    <span>Nhập Key riêng (30s)</span>
+                  </button>
+                )}
+                {onOpenOfflinePacks && (
+                  <button
+                    onClick={onOpenOfflinePacks}
+                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] border border-slate-700 transition"
+                  >
+                    <span>Đổi gói ngoại tuyến</span>
                   </button>
                 )}
               </div>
@@ -579,9 +622,27 @@ export const CameraView: React.FC<CameraViewProps> = ({
       </div>
 
       {/* Bottom Floating Bar */}
-      <div className="absolute bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-4 flex flex-col items-center gap-2.5 z-30 pointer-events-none">
+      <div className="absolute bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-4 flex flex-col items-center gap-2 z-30 pointer-events-none">
+        {/* Quick Sample Selector Strip */}
+        <div className="w-full max-w-xl flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar pointer-events-auto py-1 px-1">
+          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider shrink-0 bg-slate-950/80 px-2 py-1 rounded-lg backdrop-blur-xs border border-slate-800">
+            Mẫu du lịch:
+          </span>
+          {TRAVEL_SAMPLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onSelectSample(s)}
+              className="shrink-0 px-2.5 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 hover:text-white text-[11px] font-medium backdrop-blur-md shadow-md flex items-center gap-1 transition-all active:scale-95"
+              title={s.description}
+            >
+              <span>{s.flag}</span>
+              <span>{s.country}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Controls strip */}
-        <div className="flex items-center justify-center gap-4 pointer-events-auto">
+        <div className="flex items-center justify-center gap-2.5 sm:gap-4 pointer-events-auto">
           {/* Upload Button */}
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -592,20 +653,31 @@ export const CameraView: React.FC<CameraViewProps> = ({
             <span>Tải ảnh</span>
           </button>
 
-          {/* Snap / Scan Now Button (forces an immediate live scan) */}
+          {/* Clear Stale Translation Boxes Button */}
+          {detectedCount > 0 && onClearResult && (
+            <button
+              onClick={onClearResult}
+              className="h-10 px-3 rounded-full bg-slate-900/90 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-700/60 text-slate-300 hover:text-rose-200 flex items-center gap-1.5 backdrop-blur-md shadow-lg text-xs font-medium transition-transform active:scale-95"
+              title="Xóa chữ dịch cũ khi lia camera sang bảng mới"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Xóa chữ cũ</span>
+            </button>
+          )}
+
+          {/* Snap / Scan Now Button (forces an immediate clean live scan) */}
           <button
             onClick={() => {
               const frame = captureFrame();
-              if (frame) onLiveFrame(frame);
+              if (frame) {
+                onLiveFrame(frame, true);
+              }
             }}
-            disabled={isAnalyzing}
-            className={`h-11 px-4.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl border border-emerald-400/50 backdrop-blur-md transition-transform active:scale-95 ${
-              isAnalyzing ? 'opacity-70 animate-pulse' : ''
-            }`}
-            title="Quét lại ngay lập tức"
+            className="h-11 px-4.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl border border-emerald-400/50 backdrop-blur-md transition-transform active:scale-95 cursor-pointer"
+            title="Dịch ngay hình ảnh này"
           >
-            <Scan className="w-4 h-4" />
-            <span>{isAnalyzing ? 'Đang đọc chữ...' : 'Quét ngay'}</span>
+            <Scan className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+            <span>{isAnalyzing ? 'Đang dịch...' : 'Quét ngay'}</span>
           </button>
         </div>
       </div>

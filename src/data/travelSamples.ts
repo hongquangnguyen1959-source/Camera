@@ -254,6 +254,76 @@ export const TRAVEL_SAMPLES: TravelSample[] = [
     flag: '🇨🇳',
     description: 'Bảng hiệu biển chữ Trung Quốc Phồn/Giản thể, giờ mở cửa & lưu ý tư vấn dược sĩ.',
     image: createSvgDataUrl(chineseSignboardSvg),
+    defaultResult: {
+      detected_language: 'Tiếng Trung (Trung Quốc)',
+      language_code: 'zh',
+      summary_translation: 'Hiệu thuốc Bắc Kinh Đồng Nhân Đường (thương hiệu trăm năm). Giờ mở cửa 08:00 - 21:00. Dược sĩ tư vấn trực tiếp & sắc thuốc miễn phí. Hỗ trợ WeChat Pay, Alipay, thẻ quốc tế và hóa đơn hoàn thuế trên 500 tệ.',
+      travel_advice: 'Có thể thanh toán qua WeChat Pay/Alipay quốc tế. Hóa đơn trên 500 tệ nhớ xin biên lai hoàn thuế xuất cảnh (Tax Refund).',
+      items: [
+        {
+          box_2d: [55, 145, 190, 855],
+          original_text: '北京同仁堂',
+          translated_text: 'Hiệu Thuốc Đồng Nhân Đường Bắc Kinh',
+          pronunciation: 'Běijīng Tóngréntáng',
+          category: 'sign',
+          cultural_tip: 'Hiệu thuốc Đông y danh tiếng có lịch sử hơn 350 năm từ thời nhà Thanh.',
+        },
+        {
+          box_2d: [305, 40, 680, 115],
+          original_text: '但愿世间人无病',
+          translated_text: 'Nguyện cầu nhân thế không bệnh tật (Cột trái)',
+          category: 'sign',
+        },
+        {
+          box_2d: [305, 870, 680, 945],
+          original_text: '何妨架上药生尘',
+          translated_text: 'Dẫu cho thuốc trên giá phủ bụi mờ (Cột phải)',
+          category: 'sign',
+        },
+        {
+          box_2d: [305, 145, 395, 855],
+          original_text: '百年老字号 · 中药饮片 · 膏丹丸散',
+          translated_text: 'Thương hiệu trăm năm · Dược liệu Đông y · Cao đơn hoàn tán',
+          category: 'sign',
+        },
+        {
+          box_2d: [435, 175, 495, 825],
+          original_text: '营业时间: 08:00 - 21:00',
+          translated_text: '⏰ Giờ mở cửa: 08:00 - 21:00 hàng ngày',
+          category: 'instruction',
+        },
+        {
+          box_2d: [545, 175, 605, 825],
+          original_text: '执业药师在线咨询 · 免费煎药',
+          translated_text: '👨‍⚕️ Dược sĩ tư vấn trực tiếp · Sắc thuốc miễn phí',
+          category: 'instruction',
+        },
+        {
+          box_2d: [645, 175, 705, 825],
+          original_text: '顾客须知',
+          translated_text: '📢 Lưu ý dành cho khách mua hàng',
+          category: 'warning',
+        },
+        {
+          box_2d: [720, 175, 775, 825],
+          original_text: '本店经营道地中药材，品质保证',
+          translated_text: '• Dược liệu chính gốc, cam kết chuẩn chất lượng',
+          category: 'instruction',
+        },
+        {
+          box_2d: [780, 175, 835, 825],
+          original_text: '支持微信支付、支付宝及各类国际银行卡',
+          translated_text: '• Chấp nhận WeChat Pay, Alipay và thẻ quốc tế',
+          category: 'instruction',
+        },
+        {
+          box_2d: [840, 175, 900, 825],
+          original_text: '消费满500元可开具离境退税单据',
+          translated_text: '• Mua từ 500 tệ (~1.800.000đ) được xuất hóa đơn hoàn thuế',
+          category: 'price',
+        },
+      ],
+    },
   },
   {
     id: 'jp-ramen',
@@ -262,6 +332,52 @@ export const TRAVEL_SAMPLES: TravelSample[] = [
     flag: '🇯🇵',
     description: 'Bảng menu quán ramen với giá Yên Nhật, cảnh báo dị ứng thịt heo, cách gọi mì cay.',
     image: createSvgDataUrl(japaneseMenuSvg),
+    defaultResult: {
+      detected_language: 'Tiếng Nhật (Nhật Bản)',
+      language_code: 'ja',
+      summary_translation: 'Thực đơn mì Ramen Ippudo chính hiệu. Món đặc trưng gồm Mì Ramen xương heo đậm đà đặc biệt (1.100¥), Mì Ramen tương miso cay nồng đỏ (1.250¥), Mì Ramen thanh đạm nguyên bản (980¥). Món ăn kèm có Bánh xếp áp chảo Hakata (550¥).',
+      travel_advice: 'Có thể yêu cầu độ cứng của sợi mì (Katame = sợi cứng, Futsuu = bình thường). Ăn xong có thể gọi thêm mì (Kaedama).',
+      detected_prices: [
+        { original_price: '¥1,100', currency: 'JPY', estimated_vnd: '187.000 VNĐ' },
+        { original_price: '¥1,250', currency: 'JPY', estimated_vnd: '212.000 VNĐ' },
+        { original_price: '¥980', currency: 'JPY', estimated_vnd: '166.000 VNĐ' },
+        { original_price: '¥550', currency: 'JPY', estimated_vnd: '93.500 VNĐ' },
+      ],
+      items: [
+        {
+          box_2d: [75, 100, 140, 900],
+          original_text: '一風堂 本格豚骨ラーメン',
+          translated_text: '🍜 Mì Ramen Hầm Xương Heo Đích Thực Ippudo',
+          pronunciation: 'Ippūdō Honkaku Tonkotsu Rāmen',
+          category: 'menu',
+        },
+        {
+          box_2d: [230, 80, 310, 920],
+          original_text: '特製 濃厚豚骨ラーメン (¥1,100)',
+          translated_text: 'Đặc Biệt: Mì Ramen Xương Heo Đậm Đà (¥1,100 ~ 187k)',
+          category: 'menu',
+          cultural_tip: 'Gồm 3 lát xá xíu, trứng lòng đào tamago, rong biển và hành tây xanh.',
+        },
+        {
+          box_2d: [325, 80, 405, 920],
+          original_text: '辛味噌 激辛赤丸ラーメン (¥1,250)',
+          translated_text: '🌶️ Mì Ramen Tương Miso Đỏ Siêu Cay (¥1,250 ~ 212k)',
+          category: 'menu',
+        },
+        {
+          box_2d: [415, 80, 495, 920],
+          original_text: '白丸元味 あっさり豚骨 (¥980)',
+          translated_text: 'Mì Ramen Shiromaru Vị Thanh Đạm (¥980 ~ 166k)',
+          category: 'menu',
+        },
+        {
+          box_2d: [570, 80, 640, 920],
+          original_text: '博多 ひとくち焼き餃子 (10個) (¥550)',
+          translated_text: '🥟 Bánh Xếp Nướng Hakata Một Miếng (10 cái) (¥550 ~ 93k)',
+          category: 'menu',
+        },
+      ],
+    },
   },
   {
     id: 'kr-subway',
@@ -270,6 +386,37 @@ export const TRAVEL_SAMPLES: TravelSample[] = [
     flag: '🇰🇷',
     description: 'Biển chỉ dẫn cổng ra tàu điện ngầm Myeongdong & cảnh báo mức phạt cấm hút thuốc.',
     image: createSvgDataUrl(koreanSignSvg),
+    defaultResult: {
+      detected_language: 'Tiếng Hàn (Hàn Quốc)',
+      language_code: 'ko',
+      summary_translation: 'Ga Tàu Điện Ngầm Myeongdong (Tuyến số 4). Cổng ra số 6 dẫn tới Phố đi bộ và Trung tâm mua sắm Myeongdong. Cảnh báo khu vực cấm hút thuốc hoàn toàn, phạt tiền 100.000 Won.',
+      travel_advice: 'Tại Hàn Quốc, hút thuốc sai nơi quy định bị phạt rất nặng (100.000 Won ≈ 1.850.000đ). Cổng 6 là lối ra thẳng khu chợ đêm.',
+      detected_prices: [
+        { original_price: '100,000원', currency: 'KRW', estimated_vnd: '1.850.000 VNĐ' },
+      ],
+      items: [
+        {
+          box_2d: [70, 150, 185, 850],
+          original_text: '명동역 4호선',
+          translated_text: '🚇 Ga Myeongdong - Tuyến Tàu Số 4',
+          pronunciation: 'Myeong-dong yeok',
+          category: 'transport',
+        },
+        {
+          box_2d: [225, 200, 360, 800],
+          original_text: '6번 출구 - 명동거리 / 쇼핑몰',
+          translated_text: '➡️ Cổng Ra Số 6: Phố Mua Sắm Myeongdong',
+          category: 'transport',
+        },
+        {
+          box_2d: [480, 80, 680, 920],
+          original_text: '🚭 금연구역 - 과태료 100,000원',
+          translated_text: '🚫 Khu Vực Cấm Hút Thuốc: Phạt 100.000 Won (~1.850.000đ)',
+          category: 'warning',
+          cultural_tip: 'Seoul kiểm tra camera phạt nguội hành vi hút thuốc nơi công cộng rất nghiêm.',
+        },
+      ],
+    },
   },
   {
     id: 'th-food',
@@ -278,6 +425,43 @@ export const TRAVEL_SAMPLES: TravelSample[] = [
     flag: '🇹🇭',
     description: 'Menu món Thái Pad Thai, Tom Yum tôm cay & trà sữa, kèm lưu ý gọi không cay.',
     image: createSvgDataUrl(thaiMenuSvg),
+    defaultResult: {
+      detected_language: 'Tiếng Thái (Thái Lan)',
+      language_code: 'th',
+      summary_translation: 'Menu Quán Ăn Đường Phố Bangkok: Món Phở Xào Pad Thai Tôm Tươi (80 Baht), Canh Chua Cay Tom Yum Goong (150 Baht), Trà Sữa Thái Đỏ Truyền Thống (45 Baht). Có thể dặn "Mai Phet" nếu không ăn được cay.',
+      travel_advice: '1 Baht Thái ≈ 730 VNĐ. Nếu không ăn được cay hãy nói với người bán "Mài phết" (Không cay) hoặc "Phết nít nòi" (Cay ít).',
+      detected_prices: [
+        { original_price: '80 ฿', currency: 'THB', estimated_vnd: '58.000 VNĐ' },
+        { original_price: '150 ฿', currency: 'THB', estimated_vnd: '110.000 VNĐ' },
+        { original_price: '45 ฿', currency: 'THB', estimated_vnd: '33.000 VNĐ' },
+      ],
+      items: [
+        {
+          box_2d: [60, 100, 140, 900],
+          original_text: 'ร้านอาหารไทยชาววัง',
+          translated_text: '🍽️ Quán Ẩm Thực Thái Lan Truyền Thống',
+          category: 'menu',
+        },
+        {
+          box_2d: [200, 70, 310, 930],
+          original_text: 'ผัดไทยกุ้งสด (80 ฿)',
+          translated_text: '🦐 Phở Xào Kiểu Thái Pad Thai Tôm Tươi (80 ฿ ~ 58k)',
+          category: 'menu',
+        },
+        {
+          box_2d: [340, 70, 450, 930],
+          original_text: 'ต้มยำกุ้งน้ำข้น (150 ฿)',
+          translated_text: '🍲 Canh Chua Cay Tom Yum Tôm Nước Cốt Dừa (150 ฿ ~ 110k)',
+          category: 'menu',
+        },
+        {
+          box_2d: [480, 70, 590, 930],
+          original_text: 'ชาไทยโบราณ (45 ฿)',
+          translated_text: '🧋 Trà Sữa Thái Đỏ Thơm Béo Truyền Thống (45 ฿ ~ 33k)',
+          category: 'menu',
+        },
+      ],
+    },
   },
   {
     id: 'fr-bistro',
@@ -286,5 +470,35 @@ export const TRAVEL_SAMPLES: TravelSample[] = [
     flag: '🇫🇷',
     description: 'Bảng thực đơn quán cà phê và bít tết Paris, giá Euro và quy đổi tiền tệ sang VNĐ.',
     image: createSvgDataUrl(frenchMenuSvg),
+    defaultResult: {
+      detected_language: 'Tiếng Pháp (Pháp)',
+      language_code: 'fr',
+      summary_translation: 'Bistro Cà Phê & Nhà Hàng Paris. Món khai vị Súp hành tây nướng phô mai Gruyère đút lò (14,00 €). Món chính Bò bít tết kèm khoai tây chiên sốt bơ trứng thảo mộc Béarnaise (24,50 €). Giá đã bao gồm phí phục vụ (Service compris).',
+      travel_advice: '1 EUR ≈ 27.500 VNĐ. Ở Pháp, dòng chữ "Service compris" nghĩa là hóa đơn đã tính tiền phục vụ, không bắt buộc để lại tiền boa.',
+      detected_prices: [
+        { original_price: '14,00 €', currency: 'EUR', estimated_vnd: '385.000 VNĐ' },
+        { original_price: '24,50 €', currency: 'EUR', estimated_vnd: '673.000 VNĐ' },
+      ],
+      items: [
+        {
+          box_2d: [60, 100, 140, 900],
+          original_text: 'Le Bistro Parisien',
+          translated_text: '☕ Quán Cà Phê & Bistro Paris',
+          category: 'menu',
+        },
+        {
+          box_2d: [340, 70, 440, 930],
+          original_text: 'Soupe à l\'Oignon Gratinée (14,00 €)',
+          translated_text: '🥣 Súp Hành Tây Nướng Phô Mai Gruyère Đút Lò (14 € ~ 385k)',
+          category: 'menu',
+        },
+        {
+          box_2d: [460, 70, 560, 930],
+          original_text: 'Steak Frites Sauce Béarnaise (24,50 €)',
+          translated_text: '🥩 Bò Bít Tết Khoai Tây Chiên Sốt Bơ Thảo Mộc (24,5 € ~ 673k)',
+          category: 'menu',
+        },
+      ],
+    },
   },
 ];

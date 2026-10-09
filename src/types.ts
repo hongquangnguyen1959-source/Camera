@@ -39,4 +39,5 @@ export interface TravelSample {
   flag: string;
   description: string;
   image: string; // SVG Data URI or image url
+  defaultResult?: VisionTranslationResult;
 }

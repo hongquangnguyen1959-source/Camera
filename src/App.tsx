@@ -41,6 +41,7 @@ import { compressImageForOCR } from './utils/imageCompressor';
 import { translateOfflineSnapshot } from './utils/offlineTranslator';
 import { getDownloadedPacks, getActivePackId, setActivePackId } from './utils/languagePackStorage';
 import { getUserApiKey } from './utils/apiKeyStorage';
+import { TRAVEL_SAMPLES } from './data/travelSamples';
 import {
   DetectedItem,
   VisionTranslationResult,
@@ -72,6 +73,7 @@ export default function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [hasServerKey, setHasServerKey] = useState<boolean>(true);
   const [isMissingApiKey, setIsMissingApiKey] = useState<boolean>(false);
+  const [isQuotaExhausted, setIsQuotaExhausted] = useState<boolean>(false);
   const [activePackId, setActivePackIdState] = useState<string>(() => getActivePackId());
   const [isOnline, setIsOnline] = useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -133,23 +135,34 @@ export default function App() {
 
   const isAnalyzingRef = useRef(isAnalyzing);
   isAnalyzingRef.current = isAnalyzing;
+  const consecutiveEmptyFrames = useRef(0);
+  const activeAbortRef = useRef<AbortController | null>(null);
 
   // LIVE TRANSLATION HANDLER: Receives frames continuously without stopping the live camera
-  const handleLiveFrame = useCallback(async (frameDataUrl: string) => {
-    if (isAnalyzingRef.current) return; // Skip if already processing a frame
+  const handleLiveFrame = useCallback(async (frameDataUrl: string, isManualSnap?: boolean) => {
+    // If user clicked manual snap, abort pending background frame to prioritize this fresh frame
+    if (isManualSnap) {
+      if (activeAbortRef.current) {
+        activeAbortRef.current.abort();
+      }
+      setResult(null); // Clear stale overlay boxes immediately
+      consecutiveEmptyFrames.current = 0;
+    } else if (isAnalyzingRef.current) {
+      return; // Skip if already processing a frame
+    }
+
     isAnalyzingRef.current = true;
     setIsAnalyzing(true);
     setSilentNotice(null);
 
     const abortController = new AbortController();
-    const abortTimeout = setTimeout(() => abortController.abort(), 5500);
+    activeAbortRef.current = abortController;
+    const abortTimeout = setTimeout(() => abortController.abort(), 6500);
 
     try {
-      // Offline fallback: If device is offline, translate instantly from downloaded offline pack
+      // Offline fallback: If device is offline, check offline database
       if (!navigator.onLine) {
-        const offlineData = translateOfflineSnapshot(undefined, activePackId);
-        setResult(offlineData);
-        setSilentNotice(`📶 Đang ngoại tuyến: Dịch tức thì bằng gói ${activePackId.toUpperCase()}`);
+        setSilentNotice(`📶 Đang ngoại tuyến: Vui lòng kết nối Internet để dịch bảng cảnh báo qua AI.`);
         return;
       }
 
@@ -177,26 +190,45 @@ export default function App() {
       });
 
       if (!response.ok) {
-        // If server returns temporary message or rate limit, update notice and let next frame or scan retry
         const errData = await response.json().catch(() => ({}));
         if (response.status === 401 || errData.code === 'MISSING_API_KEY') {
           setIsMissingApiKey(true);
-          const offlineData = translateOfflineSnapshot(undefined, activePackId);
-          setResult(offlineData);
-          setSilentNotice('⚠️ Chưa cài GEMINI_API_KEY trên Vercel: Tự động dùng gói ngoại tuyến.');
+          setSilentNotice('⚠️ Chưa cấu hình GEMINI_API_KEY. Bấm vào biểu tượng 🔑 để dán Key miễn phí.');
           return;
         }
         if (response.status === 503 || response.status === 429) {
-          setSilentNotice(errData.error || 'Đang kết nối lại máy chủ dịch...');
+          if (response.status === 429 || errData.code === 'QUOTA_EXHAUSTED' || errData.isQuota) {
+            setIsQuotaExhausted(true);
+          }
+
+          // If viewing a travel sample, ensure default sample translation is shown
+          if (staticImageUrl) {
+            const matchedSample = TRAVEL_SAMPLES.find((s) => s.image === staticImageUrl);
+            if (matchedSample && matchedSample.defaultResult) {
+              setResult(matchedSample.defaultResult);
+              setSilentNotice(`Đang hiển thị bản dịch mẫu (${matchedSample.country}).`);
+              return;
+            }
+          }
+
+          // If no result is active on screen, fallback to offline language pack
+          if (!result) {
+            const offlineData = translateOfflineSnapshot(undefined, activePackId);
+            setResult(offlineData);
+            setSilentNotice('⚡ Gói AI miễn phí dùng chung đã hết lượt. Đang dùng từ điển ngoại tuyến.');
+          } else {
+            setSilentNotice(errData.error || 'Đang kết nối lại máy chủ dịch...');
+          }
+          return;
         } else if (response.status === 500) {
-          setSilentNotice(errData.error || 'Máy chủ AI đang bận, đang dùng gói ngoại tuyến...');
-          const offlineData = translateOfflineSnapshot(undefined, activePackId);
-          setResult(offlineData);
+          setSilentNotice(errData.error || 'Máy chủ AI đang bận. Bấm "Quét ngay" để thử lại.');
+          return;
         }
         return;
       }
 
       setIsMissingApiKey(false);
+      setIsQuotaExhausted(false);
 
       const rawData: VisionTranslationResult = await response.json();
       
@@ -214,8 +246,10 @@ export default function App() {
       // Update translated bounding boxes and texts directly over the live camera stream
       if (data) {
         if (data.items && data.items.length > 0) {
+          consecutiveEmptyFrames.current = 0;
           setResult(data);
         } else if (data.summary_translation) {
+          consecutiveEmptyFrames.current = 0;
           setResult({
             ...data,
             items: [
@@ -226,6 +260,14 @@ export default function App() {
               },
             ],
           });
+        } else {
+          // No items detected in this frame (e.g. panned away or no text)
+          if (!staticImageUrl) {
+            consecutiveEmptyFrames.current++;
+            if (consecutiveEmptyFrames.current >= 6) {
+              setResult(null); // Clear stale boxes only after multiple seconds of continuous empty frames
+            }
+          }
         }
 
         // Save to history periodically (only if has detected items)
@@ -248,21 +290,23 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      console.warn('Frame processing dropped:', err.message);
-      const offlineData = translateOfflineSnapshot(undefined, activePackId);
-      setResult(offlineData);
-      setSilentNotice('📶 Đã chuyển sang chế độ dịch ngoại tuyến với gói ngôn ngữ trong máy');
+      if (err.name !== 'AbortError') {
+        console.warn('Frame processing dropped:', err.message);
+      }
     } finally {
       clearTimeout(abortTimeout);
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
     }
-  }, []);
+  }, [staticImageUrl]);
 
-  // Select sample preset (switches to static sample view)
+  // Select sample preset (switches to static sample view with instant translation display)
   const handleSelectSample = (sample: TravelSample) => {
     setStaticImageUrl(sample.image);
-    handleLiveFrame(sample.image);
+    if (sample.defaultResult) {
+      setResult(sample.defaultResult);
+    }
+    handleLiveFrame(sample.image, true);
   };
 
   // Clear static image and return to continuous live camera
@@ -314,7 +358,7 @@ export default function App() {
 
           {/* View mode toggle (AR vs List) when result exists */}
           {result && (
-            <div className="hidden sm:flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-0.5 mr-1">
+            <div className="flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-0.5 mr-1 shrink-0">
               <button
                 onClick={() => setViewMode('ar')}
                 className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-medium transition-colors ${
@@ -324,7 +368,8 @@ export default function App() {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>AR Trực Tiếp</span>
+                <span className="hidden xs:inline">AR Trực Tiếp</span>
+                <span className="xs:hidden">AR</span>
               </button>
               <button
                 onClick={() => setViewMode('list')}
@@ -465,10 +510,12 @@ export default function App() {
             onSelectSample={handleSelectSample}
             onClearStaticImage={handleClearStaticImage}
             detectedCount={result?.items?.length || 0}
+            onClearResult={() => setResult(null)}
             isOnline={isOnline}
             onOpenOfflinePacks={() => setShowOfflineModal(true)}
             activePackId={activePackId}
             isMissingApiKey={isMissingApiKey}
+            isQuotaExhausted={isQuotaExhausted}
             onOpenApiKeyModal={() => setShowApiKeyModal(true)}
           >
             {/* AR Text Overlay rendered directly on top of the live video or static image */}
@@ -502,6 +549,35 @@ export default function App() {
           )}
 
 
+
+          {/* Floating Translation Results Indicator Banner */}
+          {result && result.items && result.items.length > 0 && viewMode === 'ar' && (
+            <div className="absolute bottom-24 inset-x-3 sm:inset-x-auto sm:left-4 z-30 pointer-events-auto flex items-center justify-between sm:justify-start gap-2 bg-slate-900/95 border border-emerald-500/60 rounded-2xl px-3.5 py-2 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-bold text-white text-xs">
+                  Đã dịch {result.items.length} mục
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <ListFilter className="w-3.5 h-3.5" />
+                  <span>Xem danh sách</span>
+                </button>
+                {result.summary_translation && (
+                  <button
+                    onClick={() => setShowFullArticle(true)}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs font-medium border border-slate-700 transition active:scale-95 cursor-pointer"
+                  >
+                    <span>Tóm tắt</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Selected Item Floating Details Card */}
           {selectedItem && (
@@ -653,7 +729,8 @@ export default function App() {
           hasServerKey={hasServerKey}
           onKeySaved={() => {
             setIsMissingApiKey(!getUserApiKey() && !hasServerKey);
-            setSilentNotice('Đã lưu API Key! Đang kết nối dịch camera...');
+            setIsQuotaExhausted(false);
+            setSilentNotice('Đã lưu API Key! Đang kết nối dịch camera AI...');
             setTimeout(() => setSilentNotice(null), 3000);
           }}
         />

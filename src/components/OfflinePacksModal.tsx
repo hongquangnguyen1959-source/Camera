@@ -212,10 +212,10 @@ export const OfflinePacksModal: React.FC<OfflinePacksModalProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-slate-200">
-                      Gói Phổ Biến Cho Du Lịch Châu Á
+                      Gói Dành Riêng Cho Tiếng Trung &amp; Tiếng Anh
                     </h4>
                     <p className="text-xs text-slate-400">
-                      Tải nhanh Tiếng Trung, Nhật, Hàn, Anh để yên tâm khi mất sóng hoặc đi nước ngoài
+                      Tải sẵn từ điển Tiếng Trung 🇨🇳 và Tiếng Anh 🇬🇧 để tra cứu biển báo và chỉ dẫn khi mất mạng
                     </p>
                   </div>
                 </div>
