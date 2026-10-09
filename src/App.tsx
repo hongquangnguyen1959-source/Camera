@@ -8,22 +8,13 @@ import {
   Camera,
   Layers,
   ListFilter,
-  ArrowRightLeft,
-  BookOpen,
-  History,
   Sparkles,
   Globe2,
-  Volume2,
-  Eye,
-  EyeOff,
   AlertCircle,
-  Loader2,
-  Radio,
   FileText,
+  SlidersHorizontal,
+  Volume2,
   X,
-  DownloadCloud,
-  WifiOff,
-  Key,
 } from 'lucide-react';
 import { CameraView } from './components/CameraView';
 import { AROverlay } from './components/AROverlay';
@@ -35,6 +26,7 @@ import { HistoryDrawer } from './components/HistoryDrawer';
 import { TravelAskModal } from './components/TravelAskModal';
 import { OfflinePacksModal } from './components/OfflinePacksModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { ToolsMenuModal } from './components/ToolsMenuModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { speakText } from './utils/audio';
 import { compressImageForOCR } from './utils/imageCompressor';
@@ -65,6 +57,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'ar' | 'list'>('ar');
 
   // Modals & Drawers
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showPhrasebookModal, setShowPhrasebookModal] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
@@ -324,56 +317,58 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
-      {/* Top Header Navigation */}
-      <header className="h-14 sm:h-16 bg-slate-900/90 border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between shrink-0 z-40 backdrop-blur-md">
+      {/* Clean, Minimalist Header */}
+      <header className="h-14 sm:h-16 bg-slate-900/90 border-b border-slate-800/80 px-3 sm:px-6 flex items-center justify-between shrink-0 z-40 backdrop-blur-md">
         {/* App Title & Language Indicator */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
             <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <h1 className="font-bold text-xs sm:text-sm text-white tracking-tight">
-                Dịch Camera Trực Tiếp
+                Camera Dịch
               </h1>
-              <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded font-mono font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                LIVE
-              </span>
+              {isAnalyzing ? (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.2 rounded font-mono font-medium animate-pulse">
+                  Đang dịch...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.2 rounded font-mono font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LIVE
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-slate-400">
-              <Globe2 className="w-3 h-3 text-slate-500" />
-              <span>
-                {result ? result.detected_language : 'Mọi ngôn ngữ'} ➔{' '}
+              <Globe2 className="w-3 h-3 text-slate-500 shrink-0" />
+              <span className="truncate max-w-[140px] sm:max-w-none">
+                {result ? result.detected_language : 'Tự động phát hiện'} ➔{' '}
                 <strong className="text-emerald-300 font-semibold">Tiếng Việt 🇻🇳</strong>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Action Controls & Travel Tools */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0 max-w-[68%] sm:max-w-none overflow-x-auto no-scrollbar py-1">
-          {/* PWA Install Button */}
-          <PWAInstallButton />
-
-          {/* View mode toggle (AR vs List) when result exists */}
-          {result && (
-            <div className="flex items-center bg-slate-800 border border-slate-700/80 rounded-xl p-0.5 mr-1 shrink-0">
+        {/* Clean Header Actions (Minimalist & Uncluttered) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Segmented View Mode Toggle (AR vs Danh sách) when results exist */}
+          {result && result.items && result.items.length > 0 && (
+            <div className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-xl p-0.5 shadow-sm">
               <button
                 onClick={() => setViewMode('ar')}
-                className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'ar'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">AR Trực Tiếp</span>
-                <span className="xs:hidden">AR</span>
+                <span>AR</span>
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   viewMode === 'list'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white'
@@ -385,113 +380,25 @@ export default function App() {
             </div>
           )}
 
-          {/* Toggle Mask Cover (Che chữ gốc để không bị đè 2 lớp chữ) */}
-          {result && (
-            <button
-              onClick={() => setMaskCoverMode((prev) => !prev)}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
-                maskCoverMode
-                  ? 'bg-slate-800 border-emerald-500/70 text-emerald-300 font-semibold'
-                  : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
-              }`}
-              title={
-                maskCoverMode
-                  ? 'Đang bật: Nền che chữ gốc (chống đè 2 lớp chữ)'
-                  : 'Đang tắt: Chữ nổi trong suốt'
-              }
-            >
-              <Eye className="w-4 h-4 text-emerald-400" />
-              <span className="hidden md:inline">
-                {maskCoverMode ? 'Nền che chữ gốc' : 'Chữ trong suốt'}
-              </span>
-            </button>
-          )}
-
-          {/* Toggle Full Continuous Paragraph Reader */}
-          {result && result.summary_translation && (
-            <button
-              onClick={() => setShowFullArticle((prev) => !prev)}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
-                showFullArticle
-                  ? 'bg-emerald-600 border-emerald-500 text-white font-bold'
-                  : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-              }`}
-              title="Đọc toàn bộ bài văn liền mạch"
-            >
-              <FileText className="w-4 h-4 text-emerald-400" />
-              <span className="hidden md:inline">Đoạn văn liền</span>
-            </button>
-          )}
-
-          {/* Gemini API Key Settings Button */}
+          {/* Unified Travel Utilities Button (Opens clean menu with all tools) */}
           <button
-            onClick={() => setShowApiKeyModal(true)}
-            className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
+            onClick={() => setShowToolsMenu(true)}
+            className={`py-1.5 px-3 rounded-xl border text-xs flex items-center gap-1.5 transition-colors cursor-pointer font-medium ${
               isMissingApiKey
-                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 font-bold animate-pulse'
-                : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 animate-pulse'
+                : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-200 hover:text-white'
             }`}
-            title="Cài đặt Gemini API Key (cho Vercel / Cá nhân)"
+            title="Mở tiện ích du lịch & công cụ"
           >
-            <Key className={`w-4 h-4 ${isMissingApiKey ? 'text-amber-400' : 'text-emerald-400'}`} />
-            <span className="hidden md:inline font-medium">
-              {isMissingApiKey ? 'Cài Key' : 'API Key'}
-            </span>
-          </button>
-
-          {/* Currency Converter Button */}
-          <button
-            onClick={() => setShowCurrencyModal(true)}
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
-            title="Đổi tiền tệ sang VNĐ"
-          >
-            <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline font-medium">Đổi tiền</span>
-          </button>
-
-          {/* Travel Phrasebook Button */}
-          <button
-            onClick={() => setShowPhrasebookModal(true)}
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
-            title="Sổ tay giao tiếp nhanh"
-          >
-            <BookOpen className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline font-medium">Mẫu câu</span>
-          </button>
-
-          {/* Offline Language Packs Manager Button */}
-          <button
-            onClick={() => setShowOfflineModal(true)}
-            className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
-              !isOnline
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
-                : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-            }`}
-            title="Tải & quản lý các gói ngôn ngữ ngoại tuyến"
-          >
-            {!isOnline ? (
-              <WifiOff className="w-4 h-4 text-amber-400" />
-            ) : (
-              <DownloadCloud className="w-4 h-4 text-emerald-400" />
-            )}
-            <span className="hidden sm:inline font-medium">Gói ngoại tuyến</span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-bold border border-emerald-500/30">
-              {getDownloadedPacks().length}
-            </span>
-          </button>
-
-          {/* Scan History */}
-          <button
-            onClick={() => setShowHistoryDrawer(true)}
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors relative"
-            title="Lịch sử quét"
-          >
-            <History className="w-4 h-4 text-purple-400" />
-            <span className="hidden sm:inline font-medium">Lịch sử</span>
-            {historyRecords.length > 0 && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 absolute top-1.5 right-1.5 sm:relative sm:top-0 sm:right-0" />
+            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden xs:inline">Tiện ích</span>
+            {(!isOnline || isMissingApiKey || historyRecords.length > 0) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             )}
           </button>
+
+          {/* PWA Install Button (compact) */}
+          <PWAInstallButton />
         </div>
       </header>
 
@@ -530,52 +437,11 @@ export default function App() {
             )}
           </CameraView>
 
-          {/* Live Scanning Indicator */}
-          {isLiveTranslating && !staticImageUrl && (
-            <div className="absolute top-14 left-4 z-30 pointer-events-none flex items-center gap-2 bg-slate-950/70 border border-emerald-500/30 rounded-full px-3 py-1 backdrop-blur-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span className="text-[11px] text-slate-200 font-medium">
-                Dơ camera tới chữ nào dịch ngay chữ đó...
-              </span>
-            </div>
-          )}
-
           {/* Transient silent notice if any */}
           {silentNotice && (
-            <div className="absolute top-22 left-4 z-30 pointer-events-none bg-amber-950/80 border border-amber-600/50 rounded-xl px-3 py-1 backdrop-blur-sm text-[11px] text-amber-200 flex items-center gap-1.5 animate-in fade-in">
+            <div className="absolute top-16 left-4 z-30 pointer-events-none bg-amber-950/80 border border-amber-600/50 rounded-xl px-3 py-1 backdrop-blur-sm text-[11px] text-amber-200 flex items-center gap-1.5 animate-in fade-in">
               <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
               <span>{silentNotice}</span>
-            </div>
-          )}
-
-
-
-          {/* Floating Translation Results Indicator Banner */}
-          {result && result.items && result.items.length > 0 && viewMode === 'ar' && (
-            <div className="absolute bottom-24 inset-x-3 sm:inset-x-auto sm:left-4 z-30 pointer-events-auto flex items-center justify-between sm:justify-start gap-2 bg-slate-900/95 border border-emerald-500/60 rounded-2xl px-3.5 py-2 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-bold text-white text-xs">
-                  Đã dịch {result.items.length} mục
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
-                >
-                  <ListFilter className="w-3.5 h-3.5" />
-                  <span>Xem danh sách</span>
-                </button>
-                {result.summary_translation && (
-                  <button
-                    onClick={() => setShowFullArticle(true)}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg text-xs font-medium border border-slate-700 transition active:scale-95 cursor-pointer"
-                  >
-                    <span>Tóm tắt</span>
-                  </button>
-                )}
-              </div>
             </div>
           )}
 
@@ -735,6 +601,25 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Unified Tools & Travel Utilities Modal */}
+      <ToolsMenuModal
+        isOpen={showToolsMenu}
+        onClose={() => setShowToolsMenu(false)}
+        onOpenCurrency={() => setShowCurrencyModal(true)}
+        onOpenPhrasebook={() => setShowPhrasebookModal(true)}
+        onOpenOfflinePacks={() => setShowOfflineModal(true)}
+        onOpenHistory={() => setShowHistoryDrawer(true)}
+        onOpenApiKey={() => setShowApiKeyModal(true)}
+        isMissingApiKey={isMissingApiKey}
+        isOnline={isOnline}
+        downloadedPacksCount={getDownloadedPacks().length}
+        historyCount={historyRecords.length}
+        maskCoverMode={maskCoverMode}
+        setMaskCoverMode={setMaskCoverMode}
+        hasSummaryTranslation={Boolean(result?.summary_translation)}
+        onOpenSummaryTranslation={() => setShowFullArticle(true)}
+      />
     </div>
   );
 }
