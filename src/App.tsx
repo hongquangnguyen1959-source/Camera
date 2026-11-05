@@ -138,7 +138,7 @@ export default function App() {
       if (activeAbortRef.current) {
         activeAbortRef.current.abort();
       }
-      setResult(null); // Clear stale overlay boxes immediately
+      // Do not wipe previous result immediately to avoid black flickering; keep it until new frame arrives
       consecutiveEmptyFrames.current = 0;
     } else if (isAnalyzingRef.current) {
       return; // Skip if already processing a frame
@@ -150,7 +150,8 @@ export default function App() {
 
     const abortController = new AbortController();
     activeAbortRef.current = abortController;
-    const abortTimeout = setTimeout(() => abortController.abort(), 6500);
+    // 14-second timeout so model fallback and slower mobile connections can complete safely
+    const abortTimeout = setTimeout(() => abortController.abort(), 14000);
 
     try {
       // Offline fallback: If device is offline, check offline database
@@ -225,14 +226,20 @@ export default function App() {
 
       const rawData: VisionTranslationResult = await response.json();
       
-      // Clean Chinese characters client-side as safeguard
+      // Clean Chinese characters client-side as safeguard without deleting words completely
       const chineseRegex = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g;
+      const cleanTextSafely = (str: string) => {
+        if (!str) return '';
+        const stripped = str.replace(chineseRegex, '').replace(/\(\s*\)|（\s*）/g, '').trim();
+        return stripped || str.trim();
+      };
+
       const data: VisionTranslationResult = {
         ...rawData,
-        summary_translation: rawData.summary_translation ? rawData.summary_translation.replace(chineseRegex, '').trim() : '',
+        summary_translation: cleanTextSafely(rawData.summary_translation || ''),
         items: (rawData.items || []).map(item => ({
           ...item,
-          translated_text: item.translated_text ? item.translated_text.replace(chineseRegex, '').trim() : ''
+          translated_text: cleanTextSafely(item.translated_text || '')
         })).filter(item => item.translated_text.length > 0)
       };
       
@@ -257,7 +264,7 @@ export default function App() {
           // No items detected in this frame (e.g. panned away or no text)
           if (!staticImageUrl) {
             consecutiveEmptyFrames.current++;
-            if (consecutiveEmptyFrames.current >= 6) {
+            if (consecutiveEmptyFrames.current >= 8) {
               setResult(null); // Clear stale boxes only after multiple seconds of continuous empty frames
             }
           }

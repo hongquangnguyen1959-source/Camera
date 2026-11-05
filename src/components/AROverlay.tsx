@@ -18,10 +18,12 @@ const CHINESE_REGEX = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3000-\u303f\uff
 
 function cleanVerboseText(text: string): string {
   if (!text) return '';
-  return text
+  const cleaned = text
     .replace(CHINESE_REGEX, '')
     .replace(/\s*\([^)]*(?:nghĩa|dịch|giải thích|phiên âm)[^)]*\)/gi, '')
+    .replace(/\(\s*\)|（\s*）/g, '')
     .trim();
+  return cleaned || text.trim();
 }
 
 interface PositionedItem {
@@ -52,8 +54,8 @@ function isOverlappingOrNested(boxA: number[], boxB: number[]): boolean {
   const areaB = Math.max(1, (y2Max - y2Min) * (x2Max - x2Min));
   const minArea = Math.min(areaA, areaB);
 
-  // If > 30% of the smaller box overlaps -> duplicate or nested macro container
-  return interArea / minArea > 0.3;
+  // If > 70% of the smaller box overlaps -> duplicate or nested macro container
+  return interArea / minArea > 0.7;
 }
 
 // Anti-overlap, full-text layout engine

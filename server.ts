@@ -73,8 +73,9 @@ app.post('/api/translate-vision', async (req, res) => {
     // Circuit-breaker check: If using default shared key and currently cooling down from 429
     const isCustomKey = Boolean(req.headers['x-gemini-api-key']);
     if (!isCustomKey && Date.now() < sharedKeyCooldownUntil) {
+      const waitSec = Math.max(1, Math.ceil((sharedKeyCooldownUntil - Date.now()) / 1000));
       return res.status(429).json({
-        error: 'Hệ thống AI dùng chung đã hết 20 lượt miễn phí hôm nay. Đang sử dụng chế độ từ điển ngoại tuyến.',
+        error: `Hệ thống AI dùng chung đang quá tải hạn mức. Vui lòng đợi ${waitSec}s hoặc nhập Gemini API Key cá nhân trong cài đặt.`,
         code: 'QUOTA_EXHAUSTED',
         isQuota: true,
       });
@@ -140,12 +141,11 @@ Xuất định dạng JSON thuần:
   ]
 }`;
 
-    // Multi-model fallback sequence for 100% reliability and fast response
+    // Multi-model fallback sequence using official, fast Gemini models
     const candidateModels = [
-      'gemini-flash-latest',
-      'gemini-3.8-flash',
       'gemini-2.5-flash',
-      'gemini-3.1-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
     ];
 
     let lastError: any = null;
@@ -154,12 +154,17 @@ Xuất định dạng JSON thuần:
     for (const modelName of candidateModels) {
       try {
         const config: any = {
-          systemInstruction: 'Bạn là chuyên gia AR OCR trực tiếp tốc độ cao. Dịch chuẩn xác 100% toàn bộ chữ trong ảnh sang tiếng Việt đầy đủ, rõ nghĩa, không viết tắt, không cắt bớt chữ, không xuất chữ Hán.',
+          systemInstruction: 'Bạn là chuyên gia AR OCR trực tiếp tốc độ cao. Dịch chuẩn xác 100% toàn bộ chữ trong ảnh sang tiếng Việt đầy đủ, rõ nghĩa, không viết tắt, không cắt bớt chữ.',
           responseMimeType: 'application/json',
           maxOutputTokens: 2048,
         };
 
-        // 9-second timeout per candidate to guarantee real-time turnaround without premature aborts
+        // Turn off internal chain-of-thought latency for 2.5 flash to achieve ~1s real-time OCR
+        if (modelName.includes('2.5')) {
+          config.thinkingConfig = { thinkingBudget: 0 };
+        }
+
+        // 5.5-second timeout per candidate to guarantee real-time turnaround and allow fallback
         const generatePromise = ai.models.generateContent({
           model: modelName,
           contents: {
@@ -177,7 +182,7 @@ Xuất định dạng JSON thuần:
         });
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Model timeout')), 9000)
+          setTimeout(() => reject(new Error('Model timeout')), 5500)
         );
 
         const response: any = await Promise.race([generatePromise, timeoutPromise]);
@@ -197,12 +202,12 @@ Xuất định dạng JSON thuần:
         (lastError?.message && (lastError.message.includes('429') || lastError.message.includes('quota') || lastError.message.includes('RESOURCE_EXHAUSTED')));
 
       if (isQuota && !isCustomKey) {
-        sharedKeyCooldownUntil = Date.now() + 60000;
-        console.warn('Gemini shared key quota limit reached. Cooldown activated for 60s.');
+        sharedKeyCooldownUntil = Date.now() + 25000;
+        console.warn('Gemini shared key quota limit reached. Cooldown activated for 25s.');
       }
 
       const errMsg = isQuota 
-        ? 'Hệ thống AI dùng chung đã hết 20 lượt miễn phí hôm nay. Ứng dụng đã tự động chuyển sang chế độ từ điển ngoại tuyến.' 
+        ? 'Hệ thống AI dùng chung đang quá tải hạn mức. Bạn có thể nhập Gemini API Key riêng trong cài đặt hoặc thử lại sau giây lát.' 
         : (lastError?.message || 'Máy chủ đang tải cao, vui lòng thử lại sau giây lát');
 
       return res.status(429).json({
@@ -292,7 +297,10 @@ Xuất định dạng JSON thuần:
           '';
 
         if (typeof text !== 'string') text = String(text);
-        text = text.replace(chineseRegex, '').trim();
+        const originalText = text.trim();
+        // Remove CJK characters but keep original if stripping would leave it completely empty
+        const stripped = originalText.replace(chineseRegex, '').replace(/\(\s*\)|（\s*）/g, '').trim();
+        text = stripped || originalText;
 
         // Flexible bounding box extraction
         let box = item.box_2d || item.box || item.bbox || item.bounding_box || item.boundingBox;
@@ -328,7 +336,9 @@ Xuất định dạng JSON thuần:
 
     let summary = parsed?.summary_translation || parsed?.summary || '';
     if (typeof summary === 'string') {
-      summary = summary.replace(chineseRegex, '').trim();
+      const origSummary = summary.trim();
+      const strippedSummary = origSummary.replace(chineseRegex, '').replace(/\(\s*\)|（\s*）/g, '').trim();
+      summary = strippedSummary || origSummary;
     }
 
     // If no individual line items were detected but summary exists, create a readable fallback item
@@ -408,12 +418,17 @@ Hãy trả lời ngắn gọn, thực tế, dễ hiểu bằng tiếng Việt (k
     });
 
     let answerText = '';
-    const chatModels = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+    const chatModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     for (const m of chatModels) {
       try {
+        const config: any = {};
+        if (m.includes('2.5')) {
+          config.thinkingConfig = { thinkingBudget: 0 };
+        }
         const response = await ai.models.generateContent({
           model: m,
           contents: { parts },
+          config,
         });
         if (response.text) {
           answerText = response.text;
@@ -449,7 +464,7 @@ app.post('/api/tts', async (req, res) => {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash-lite-tts',
+      model: 'gemini-2.0-flash',
       contents: [
         {
           role: 'user',

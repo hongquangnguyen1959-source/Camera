@@ -286,7 +286,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       canvasRef.current = document.createElement('canvas');
     }
     const canvas = canvasRef.current;
-    const maxDim = 720;
+    const maxDim = 960;
     const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
     const targetW = Math.round(video.videoWidth * scale);
     const targetH = Math.round(video.videoHeight * scale);
@@ -300,8 +300,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
     if (!ctx) return null;
 
     ctx.drawImage(video, 0, 0, targetW, targetH);
-    // 0.58 JPEG produces crisp OCR with tiny ~35KB payload for true 1-second latency
-    return canvas.toDataURL('image/jpeg', 0.58);
+    // 0.75 JPEG produces sharp character edges for OCR without excessive payload size
+    return canvas.toDataURL('image/jpeg', 0.75);
   }, [cameraReady, staticImageUrl]);
 
   // SMOOTH LIVE TRANSLATION LOOP (Completely non-blocking, leaves video stream uninterrupted at 60fps)
@@ -327,8 +327,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
         }
       }
 
-      // Throttle interval to 8 seconds if shared quota is exhausted to avoid rate-limit spamming
-      const loopInterval = isQuotaExhausted ? 8000 : 750;
+      // Safe throttling: 2500ms prevents hitting Gemini 15 RPM free tier limits; 8000ms if quota exhausted
+      const loopInterval = isQuotaExhausted ? 8000 : 2500;
       timeoutId = setTimeout(runLiveLoop, loopInterval);
     };
 
